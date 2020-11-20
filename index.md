@@ -5,5 +5,5 @@
 
 ## WEEK 1 (November 20)
 [Here](files/IE582_Fall20_Homework1.pdf) is the description of Homework 1 \
-[Here](files/IE582_HW1_Kaya.html) is Homework 1 and [codes](files/IE582_HW1_Kaya.Rmd)
+[Here](files/IE582_Kaya_HW1.html) is Homework 1 and [codes](files/IE582_Kaya_HW1.Rmd)
 
