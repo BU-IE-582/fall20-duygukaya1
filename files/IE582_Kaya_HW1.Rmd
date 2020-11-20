@@ -1,0 +1,314 @@
+---
+title: "HOMEWORK 1"
+author: "Duygu Kaya - IE582 - Fall 2020"
+due: November 20
+output:
+  html_document:
+    df_print: paged
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(warning = F,error = T,message = F)
+```
+
+## TASK 1
+In this task, histogram diagram of home and away score are plotted and probabability distribution is analyzed according to Poisson distribution.
+
+```{r}
+  # Read datasets
+  D1 = read.csv("C:\\Users\\kayad\\Desktop\\2020_2021.csv", header = TRUE)
+  D2 = read.csv("C:\\Users\\kayad\\Desktop\\2019_20.csv", header = TRUE)
+  D3 = read.csv("C:\\Users\\kayad\\Desktop\\2018_19.csv", header = TRUE)
+  data0 = merge(D1,D2, all = TRUE)
+  data1 = merge(data0,D3, all = TRUE)
+  data_match = data1[1:56]
+```
+
+```{r}
+  # Import library
+  library(stats)
+  library(base)
+  library(ggplot2)
+  library(dplyr)
+```
+
+### Task 1.1 
+```{r}
+  # Plot histograms
+  qplot(data_match$FTHG,geom="histogram",binwidth = 0.9, main = "Home Scores", xlab = "Home Goals",  ylab = "Number of Games",col = "red", fill ="red", alpha=0.3)+theme(legend.position = "none")
+  qplot(data_match$FTAG,geom="histogram",binwidth = 0.9, main = "Away Scores", xlab = "Away Goals",  ylab = "Number of Games", col = "red", fill ="red", alpha=0.3)+theme(legend.position = "none")
+  data_match2 = mutate(data_match, HGAG = FTHG-FTAG)
+  qplot(data_match2$HGAG,geom="histogram",binwidth = 0.9, main = "Home Scores", xlab = "Home Goals-Away Goals",  ylab = "Number of Games", col = "red", fill ="red", alpha=0.3)+theme(legend.position = "none")
+```  
+  
+### Task 1.2
+```{r} 
+  # Find sample mean
+  FTHG_mean = mean(data_match$FTHG)
+  FTAG_mean = mean(data_match$FTAG)
+  
+  
+  # Histogram for Home Score
+  hist(data_match$FTHG ,right = FALSE ,ylim=c(0,300),col="lightblue",border="blue",xlab="Home Goals",ylab = "Number of Games", main="Poisson Distribution(mean=1.53)",cex.main = 1)
+  pois_FTHG = dpois(c(0:8),lambda = FTHG_mean)*length(data_match$FTHG)
+  lines(pois_FTHG,col="purple",lwd=3)
+  
+  
+  # Histogram for Away Score
+   hist(data_match$FTAG, right = FALSE, ylim=c(0,300),col="lightblue",border="blue",xlab="Away Goals",ylab = "Number of Games", main="Poisson Distribution(mean=1.27)",cex.main = 1)
+   pois_FTAG = dpois(c(0:8),lambda = FTAG_mean)*length(data_match$FTAG)
+   lines(pois_FTAG,col="black",lwd=3)
+```
+
+ It can be seen that, distribution of home ( λ =1.53) and away goal( λ =1.53) fit to Poisson distribution.
+ 
+## TASK 2
+In this task,   odds probabilities are calculated which are given by bookmakers and compared with the actual results .
+
+### Task 2.1
+```{r} 
+  # Bet365(B365),BetandWin(BW),Pinnacle(PS),IW (Some Bookmaker) are chosen
+  # Calculate probabilities for P_homewin, p_tie and p_awaywin
+  
+  Prob_match = data_match %>% mutate(B365H_prob = 1/B365H,B365D_prob = 1/B365D,B365A_prob=1/B365A,BWH_prob = 1/BWH,BWD_prob = 1/BWD,
+               BWA_prob=1/BWA,PSH_prob =1/PSH,PSD_prob =1/PSD,PSA_prob =1/PSA,IWH_prob = 1/IWH,IWD_prob = 1/IWD,IWA_prob = 1/IWA)                   
+   
+  Probs = Prob_match[57:68]
+```  
+  
+### Task 2.2
+```{r}
+  # Calculate normalized probabilities
+  
+  Probs = Probs %>% rowwise()%>% mutate(B365_sum = sum(c(B365H_prob,B365D_prob,B365A_prob)))
+  Probs = Probs %>% rowwise()%>% mutate(BW_sum = sum(c(BWH_prob,BWD_prob,BWA_prob)))
+  Probs = Probs %>% rowwise()%>% mutate(PS_sum = sum(c(PSH_prob,PSD_prob,PSA_prob)))
+  Probs = Probs %>% rowwise()%>% mutate(IW_sum = sum(c(IWH_prob,IWD_prob,IWA_prob)))
+  
+  Probs_norm = Probs %>% mutate(B365H_norm = B365H_prob/B365_sum,B365D_norm = B365D_prob/B365_sum,B365A_norm = B365A_prob/B365_sum,BWH_norm = BWH_prob/BW_sum,BWD_norm = BWD_prob/BW_sum,
+                                BWA_norm = BWA_prob/BW_sum,PSH_norm =PSH_prob/PS_sum,PSD_norm =PSD_prob/PS_sum,PSA_norm =PSA_prob/PS_sum,IWH_norm = IWH_prob/IW_sum,IWD_norm = IWD_prob/IW_sum,IWA_norm = IWA_prob/IW_sum)
+                                                                                                  
+  Probs_norm = Probs_norm[17:28]              
+```  
+
+### Task 2.3 & Task 2.4
+
+### Bet365
+```{r}
+  # Plot for Bet365
+  
+  Probs =  Probs %>% mutate(B365_Ph_Pa = (B365H_prob-B365A_prob))
+  Probs_norm = Probs_norm %>% mutate(B365_norm_Ph_Pa = (B365H_norm-B365A_norm))
+  
+  B365_intervals = Probs_norm %>% group_by( B365_breaks = cut(B365_norm_Ph_Pa, breaks= seq(-1, 1, by = 0.2)))%>%summarise(n = n()) %>% arrange(as.numeric( B365_breaks))
+  
+  
+  # Find probability of draw for Bet365 from actual results
+
+  data_match$FTR = ifelse(data_match$FTR == "D", 1, 0)
+  data_match = mutate(data_match,Probs_norm$B365_norm_Ph_Pa)
+  B365_draw_data = data_match %>% count(FTR,Probs_norm$B365_norm_Ph_Pa)
+  B365_draw_data = filter(B365_draw_data,FTR == !0)
+  breaks = seq(-1,1,by = 0.2)
+  B365_draw_data = cut(B365_draw_data$`Probs_norm$B365_norm_Ph_Pa`,breaks, right = TRUE)
+  B365_draw_data = table(B365_draw_data)
+  B365_draw_data = cbind(B365_draw_data)
+  B365_intervals =  B365_intervals %>% mutate(B365_draw_data)
+  Prob_draw = B365_intervals %>% mutate(B365_draw_prob = B365_draw_data/n)
+  B365_draw_prob = (B365_intervals$B365_draw_data/B365_intervals$n)
+  ranges = c(-0.9,-0.7,-0.5,-0.3,-0.1,0.1,0.3,0.5,0.7,0.9)
+  Prob_draw = Prob_draw %>% mutate(ranges)
+  
+ 
+  ggplot(data = Probs_norm)+geom_point(mapping = aes(x = B365_norm_Ph_Pa,y = B365D_norm,color="red"))+
+   geom_point(data = Prob_draw, aes(x = ranges,y = B365_draw_prob , color="blue"))+
+    xlab("P(home)-P(away)")+ylab("P(draw)")+ ggtitle("Bet365")+
+    scale_color_identity(name = "Data",
+                         breaks = c("red", "blue"),
+                         labels = c("Bet365", "Actual results"),
+                         guide = "legend")+theme(legend.position = "bottom")
+```                                        
+
+### Bet&Win
+```{r}
+  # Plot for BetandWin
+  Probs =  Probs %>% mutate(BW_Ph_Pa = (BWH_prob-BWA_prob))
+  Probs_norm = Probs_norm %>% mutate(BW_norm_Ph_Pa = (BWH_norm-BWA_norm))
+  
+  data_match = mutate(data_match,Probs_norm$BW_norm_Ph_Pa)
+  BW_draw_data = data_match %>% count(FTR,Probs_norm$BW_norm_Ph_Pa)
+  BW_draw_data = filter(BW_draw_data,FTR == !0)
+  BW_draw_data = cut(BW_draw_data$`Probs_norm$BW_norm_Ph_Pa`,breaks, right = TRUE)
+  BW_draw_data = table(BW_draw_data)
+  BW_draw_data = cbind(BW_draw_data)
+  B365_intervals =  B365_intervals %>% mutate(BW_draw_data)
+  Prob_draw = B365_intervals %>% mutate(BW_draw_prob = BW_draw_data/n)
+  BW_draw_prob = (B365_intervals$BW_draw_data/B365_intervals$n)
+  ranges = c(-0.9,-0.7,-0.5,-0.3,-0.1,0.1,0.3,0.5,0.7,0.9)
+  Prob_draw = Prob_draw %>% mutate(ranges)
+  
+                           
+  ggplot(data = Probs_norm)+geom_point(mapping= aes(x = BW_norm_Ph_Pa,y = BWD_norm,color="green"))+
+    geom_point(data = Prob_draw, aes(x = ranges,y = BW_draw_prob , color="purple"))+
+    xlab("P(home)-P(away)")+ylab("P(draw)")+ggtitle("Bet&Win")+
+    scale_color_identity(name = "Data",
+                         breaks = c("green", "purple"),
+                         labels = c("Bet&Win", "Actual results"),
+                         guide = "legend")+theme(legend.position = "bottom")
+```
+
+### Pinnacle
+```{r}
+  # Plot for Pinnacle
+  Probs =  Probs %>% mutate(PS_Ph_Pa = (PSH_prob-PSA_prob))
+  Probs_norm = Probs_norm %>% mutate(PS_norm_Ph_Pa = (PSH_norm-PSA_norm))
+  
+  data_match = mutate(data_match,Probs_norm$PS_norm_Ph_Pa)
+  PS_draw_data = data_match %>% count(FTR,Probs_norm$PS_norm_Ph_Pa)
+  PS_draw_data = filter(PS_draw_data,FTR == !0)
+  PS_draw_data = cut(PS_draw_data$`Probs_norm$PS_norm_Ph_Pa`,breaks, right = TRUE)
+  PS_draw_data = table(PS_draw_data)
+  PS_draw_data = cbind(PS_draw_data)
+  B365_intervals =  B365_intervals %>% mutate(PS_draw_data)
+  Prob_draw = B365_intervals %>% mutate(PS_draw_prob = PS_draw_data/n)
+  PS_draw_prob = (B365_intervals$PS_draw_data/B365_intervals$n)
+  ranges = c(-0.9,-0.7,-0.5,-0.3,-0.1,0.1,0.3,0.5,0.7,0.9)
+  Prob_draw = Prob_draw %>% mutate(ranges)
+  
+  ggplot(data = Probs_norm)+geom_point(mapping= aes(x = PS_norm_Ph_Pa,y = PSD_norm,col = I("purple")))+
+    geom_point(data = Prob_draw, aes(x = ranges,y = PS_draw_prob , col = I("black")))+
+    xlab("P(home)-P(away)")+ylab("P(draw)")+ggtitle("Pinnacle")+
+    scale_color_identity(name = "Data",
+                         breaks = c("purple", "black"),
+                         labels = c("Pinnacle", "Actual results"),
+                         guide = "legend")+theme(legend.position = "bottom")
+```   
+
+### IW
+```{r}
+  # Plot for IW
+  Probs =  Probs %>% mutate(IW_Ph_Pa = (IWH_prob-IWA_prob))
+  Probs_norm = Probs_norm %>% mutate(IW_norm_Ph_Pa = (IWH_norm-IWA_norm))
+  
+  data_match = mutate(data_match,Probs_norm$IW_norm_Ph_Pa)
+  IW_draw_data = data_match %>% count(FTR,Probs_norm$IW_norm_Ph_Pa)
+  IW_draw_data = filter(IW_draw_data,FTR == !0)
+  IW_draw_data = cut(IW_draw_data$`Probs_norm$IW_norm_Ph_Pa`,breaks, right = TRUE)
+  IW_draw_data = table(IW_draw_data)
+  IW_draw_data = cbind(IW_draw_data)
+  B365_intervals =  B365_intervals %>% mutate(IW_draw_data)
+  Prob_draw = B365_intervals %>% mutate(IW_draw_prob = IW_draw_data/n)
+  IW_draw_prob = (B365_intervals$IW_draw_data/B365_intervals$n)
+  ranges = c(-0.9,-0.7,-0.5,-0.3,-0.1,0.1,0.3,0.5,0.7,0.9)
+  Prob_draw = Prob_draw %>% mutate(ranges)
+  
+  ggplot(data = Probs_norm)+geom_point(mapping= aes(x = IW_norm_Ph_Pa,y = IWD_norm,col = I("blue")))+
+    geom_point(data = Prob_draw, aes(x = ranges,y = IW_draw_prob , col = I("gold")))+
+    xlab("P(home)-P(away)")+ylab("P(draw)")+ggtitle("IW")+
+    scale_color_identity(name = "Data",
+                         breaks = c("blue", "gold"),
+                         labels = c("IW", "Actual results"),
+                         guide = "legend")+theme(legend.position = "bottom")
+```   
+
+## TASK3
+The aim of this task is to remove the games which include red cards from the dataset and comparing results with matches that have red cards
+
+### Bet365 without red cards
+```{r}  
+  # Plot Bet365 without red cards
+  
+  data_match_no_redcard = filter(data_match,HR == !1 & AR == !1)
+  B365_draw_data_no_redcard = filter(data_match_no_redcard,FTR == !0)
+  breaks = seq(-1,1,by = 0.2)
+  B365_draw_data_no_redcard = cut(B365_draw_data_no_redcard$`Probs_norm$B365_norm_Ph_Pa`,breaks, right = TRUE)
+  B365_draw_data_no_redcard = table(B365_draw_data_no_redcard)
+  B365_draw_data_no_redcard = cbind(B365_draw_data_no_redcard)
+  B365_intervals =  B365_intervals %>% mutate(B365_draw_data_no_redcard)
+  Prob_draw_no_redcard = B365_intervals %>% mutate(B365_draw_prob_no_redcard = B365_draw_data_no_redcard/n)
+  B365_draw_prob_no_redcard = (B365_intervals$B365_draw_data_no_redcard/B365_intervals$n)
+  ranges = c(-0.9,-0.7,-0.5,-0.3,-0.1,0.1,0.3,0.5,0.7,0.9)
+  Prob_draw_no_redcard = Prob_draw_no_redcard %>% mutate(ranges)
+  
+  
+  ggplot(data = Probs_norm)+geom_point(mapping = aes(x = B365_norm_Ph_Pa,y = B365D_norm,col = I("red")))+
+    geom_point(data = Prob_draw, aes(x = ranges,y = B365_draw_prob , col = I("blue")))+
+    geom_point(data = Prob_draw_no_redcard, aes(x = ranges,y = B365_draw_prob_no_redcard ,col = I("gold")))+
+    xlab("P(home)-P(away)")+ylab("P(draw)")+ ggtitle("Bet365 without red cards")+
+    scale_color_identity(name = "Data",
+                         breaks = c("red", "blue", "gold"),
+                         labels = c("Bet365", "red cards", "without red cards"),
+                         guide = "legend")+theme(legend.position = "bottom")
+```                         
+
+### Bet&win without red cards 
+```{r} 
+  # Plot BetandWin without red cards
+  
+  BW_draw_data_no_redcard = filter(data_match_no_redcard,FTR == !0)
+  breaks = seq(-1,1,by = 0.2)
+  BW_draw_data_no_redcard = cut(BW_draw_data_no_redcard$`Probs_norm$BW_norm_Ph_Pa`,breaks, right = TRUE)
+  BW_draw_data_no_redcard = table(BW_draw_data_no_redcard)
+  BW_draw_data_no_redcard = cbind(BW_draw_data_no_redcard)
+  B365_intervals =  B365_intervals %>% mutate(BW_draw_data_no_redcard)
+  Prob_draw_no_redcard = B365_intervals %>% mutate(BW_draw_prob_no_redcard = BW_draw_data_no_redcard/n)
+  BW_draw_prob_no_redcard = (B365_intervals$BW_draw_data_no_redcard/B365_intervals$n)
+  
+  ggplot(data = Probs_norm)+geom_point(mapping= aes(x = BW_norm_Ph_Pa,y = BWD_norm,color = "green"))+
+    geom_point(data = Prob_draw, aes(x = ranges,y = BW_draw_prob , color = "purple"))+
+    geom_point(data = Prob_draw_no_redcard, aes(x = ranges,y = BW_draw_prob_no_redcard ,color = "pink"))+
+    xlab("P(home)-P(away)")+ylab("P(draw)")+ ggtitle("Bet&Win without red cards")+
+    scale_color_identity(name = "Data",
+                         breaks = c("green", "purple", "pink"),
+                         labels = c("Bet&Win", "red cards", "without red cards"),
+                         guide = "legend")+theme(legend.position = "bottom")
+``` 
+
+### Pinnacle without red cards
+```{r} 
+  # Plot Pinnacle without red cards
+  
+  PS_draw_data_no_redcard = filter(data_match_no_redcard,FTR == !0)
+  breaks = seq(-1,1,by = 0.2)
+  PS_draw_data_no_redcard = cut(PS_draw_data_no_redcard$`Probs_norm$PS_norm_Ph_Pa`,breaks, right = TRUE)
+  PS_draw_data_no_redcard = table(PS_draw_data_no_redcard)
+  PS_draw_data_no_redcard = cbind(PS_draw_data_no_redcard)
+  B365_intervals =  B365_intervals %>% mutate(PS_draw_data_no_redcard)
+  Prob_draw_no_redcard = B365_intervals %>% mutate(PS_draw_prob_no_redcard = PS_draw_data_no_redcard/n)
+  PS_draw_prob_no_redcard = (B365_intervals$PS_draw_data_no_redcard/B365_intervals$n)
+
+  
+  ggplot(data = Probs_norm)+geom_point(mapping= aes(x = PS_norm_Ph_Pa,y = PSD_norm,col = I("purple")))+
+    geom_point(data = Prob_draw, aes(x = ranges,y = PS_draw_prob , col = I("black")))+
+    geom_point(data = Prob_draw_no_redcard, aes(x = ranges,y = PS_draw_prob_no_redcard ,col = I("red")))+
+    xlab("P(home)-P(away)")+ylab("P(draw)")+ggtitle("Pinnacle without red cards")+
+    scale_color_identity(name = "Data",
+                         breaks = c("purple", "black", "red"),
+                         labels = c("Pinnacle", "red cards", "without red cards"),
+                         guide = "legend")+theme(legend.position = "bottom")
+``` 
+
+### IW without red cards
+```{r} 
+  # Plot IW without red cards
+  
+  IW_draw_data_no_redcard = filter(data_match_no_redcard,FTR == !0)
+  breaks = seq(-1,1,by = 0.2)
+  IW_draw_data_no_redcard = cut(IW_draw_data_no_redcard$`Probs_norm$IW_norm_Ph_Pa`,breaks, right = TRUE)
+  IW_draw_data_no_redcard = table(IW_draw_data_no_redcard)
+  IW_draw_data_no_redcard = cbind(IW_draw_data_no_redcard)
+  B365_intervals =  B365_intervals %>% mutate(IW_draw_data_no_redcard)
+  Prob_draw_no_redcard = B365_intervals %>% mutate(IW_draw_prob_no_redcard = IW_draw_data_no_redcard/n)
+  IW_draw_prob_no_redcard = (B365_intervals$IW_draw_data_no_redcard/B365_intervals$n)
+  
+  ggplot(data = Probs_norm)+geom_point(mapping= aes(x = IW_norm_Ph_Pa,y = IWD_norm,col = I("blue")))+
+    geom_point(data = Prob_draw, aes(x = ranges,y = IW_draw_prob , col = I("gold")))+
+    geom_point(data = Prob_draw_no_redcard, aes(x = ranges,y = IW_draw_prob_no_redcard ,col = I("purple")))+
+    xlab("P(home)-P(away)")+ylab("P(draw)")+ggtitle("IW without red cards")+ theme(legend.position = "bottom")+
+    scale_color_identity(name = "Data",
+                         breaks = c("blue", "gold", "purple"),
+                         labels = c("IW", "red cards", "without red cards"),
+                         guide = "legend")+theme(legend.position = "bottom")
+``` 
+
+There is no significant change for the except that some ranges of P(home)- P(away) for each bookmaker.In the case which P(home)-P(away) is around the zero , there is sligtly changes for draw results.Hence, we can say that having a red card in the games does not effect the results directly.` 
