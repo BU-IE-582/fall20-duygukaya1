@@ -1,0 +1,345 @@
+---
+title: "HOMEWORK 2"
+author : "Duygu Kaya - IE582 - Fall 2020"
+due : "December 11"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE,warning = F,error = F, message = F)
+```
+
+### Dimensionality reduction for time series data
+The aim is to obtain three dimensional data to one dimensional data with univariate time series by using dimension reduction.To achieve this, three-axis accelerometer data from eight users is collected to characterize eight gesture patterns. The data, uWaveGestureLibrary, consists over 4000 instances each of which has the accelerometer readings in three dimensions( x, y and z).There are separate files for each axis.
+
+```{r}
+# Import library
+library(stats)
+library(base)
+library(ggplot2)
+library(dplyr)
+library(plot3D)
+library(reshape)
+library(tidyr)
+
+```
+
+```{r}
+# Read datasets
+x_train <- read.table("C:\\Users\\kayad\\Desktop\\uWaveGestureLibrary_X_TRAIN")
+y_train <- read.table("C:\\Users\\kayad\\Desktop\\uWaveGestureLibrary_Y_TRAIN")
+z_train <- read.table("C:\\Users\\kayad\\Desktop\\uWaveGestureLibrary_Z_TRAIN")
+
+# change the name of first column in dataframes
+names(x_train)[1] <- "class"
+names(y_train)[1] <- "class"
+names(z_train)[1] <- "class"
+```
+
+```{r}
+# Velocities from accelaration
+velocity_x_train = x_train[2:316]
+velocity_x_train = t(apply(velocity_x_train,1,cumsum))
+velocity_x_train = cbind(x_train$class,velocity_x_train)
+
+velocity_y_train = y_train[2:316]
+velocity_y_train = t(apply(velocity_y_train,1,cumsum))
+velocity_y_train = cbind(y_train$class,velocity_y_train)
+
+
+velocity_z_train = z_train[2:316]
+velocity_z_train = t(apply(velocity_z_train,1,cumsum))
+velocity_z_train = cbind(z_train$class,velocity_z_train)
+
+# Positions from velocity
+position_x_train = velocity_x_train[,2:316]
+position_x_train = t(apply(position_x_train,1,cumsum))
+position_x_train = cbind(x_train$class,position_x_train)
+
+position_y_train = velocity_y_train[,2:316]
+position_y_train = t(apply(position_y_train,1,cumsum))
+position_y_train = cbind(y_train$class,position_y_train)
+
+position_z_train = velocity_z_train[,2:316]
+position_z_train = t(apply(position_z_train,1,cumsum))
+position_z_train = cbind(z_train$class,position_z_train)
+```
+
+### Task A
+
+In this task, position variables that are obtained by cumulative sum of velocities are visualized one instance (all axes) from each class to become familiar with the shape of the gestures in the figure 1.
+
+```{r}
+# Plots for each class
+
+# class 1 
+x_class1 = position_x_train[position_x_train[,1] == 1,]
+y_class1 = position_y_train[position_y_train[,1] == 1,]
+z_class1 = position_z_train[position_z_train[,1] == 1,]
+scatter3D(x_class1[1,],y_class1[1,],z_class1[1,], main = paste("Gesture for Class 1"))
+
+# class 2
+x_class2 = position_x_train[position_x_train[,1] == 2,]
+y_class2 = position_y_train[position_y_train[,1] == 2,]
+z_class2 = position_z_train[position_z_train[,1] == 2,]
+scatter3D(x_class2[1,],y_class2[1,],z_class2[1,], main = paste("Gesture for Class 2"))
+
+# Class 3
+x_class3 = position_x_train[position_x_train[,1] == 3,]
+y_class3 = position_y_train[position_y_train[,1] == 3,]
+z_class3 = position_z_train[position_z_train[,1] == 3,]
+scatter3D(x_class3[1,],y_class3[1,],z_class3[1,], main = paste("Gesture for Class 3"))
+
+# Class 4
+x_class4 = position_x_train[position_x_train[,1] == 4,]
+y_class4 = position_y_train[position_y_train[,1] == 4,]
+z_class4 = position_z_train[position_z_train[,1] == 4,]
+scatter3D(x_class4[1,],y_class4[1,],z_class4[1,], main = paste("Gesture for Class 4"))
+
+# Class 5
+x_class5 = position_x_train[position_x_train[,1] == 5,]
+y_class5 = position_y_train[position_y_train[,1] == 5,]
+z_class5 = position_z_train[position_z_train[,1] == 5,]
+scatter3D(x_class5[1,],y_class5[1,],z_class5[1,], main = paste("Gesture for Class 5"))
+
+# Class 6 
+x_class6 = position_x_train[position_x_train[,1] == 6,]
+y_class6 = position_y_train[position_y_train[,1] == 6,]
+z_class6 = position_z_train[position_z_train[,1] == 6,]
+scatter3D(x_class6[1,],y_class6[1,],z_class6[1,], main = paste("Gesture for Class 6"))
+
+# Class 7
+x_class7 = position_x_train[position_x_train[,1] == 7,]
+y_class7 = position_y_train[position_y_train[,1] == 7,]
+z_class7 = position_z_train[position_z_train[,1] == 7,]
+scatter3D(x_class7[1,],y_class7[1,],z_class7[1,], main = paste("Gesture for Class 7"))
+
+# Class 8
+x_class8 = position_x_train[position_x_train[,1] == 8,]
+y_class8 = position_y_train[position_y_train[,1] == 8,]
+z_class8 = position_z_train[position_z_train[,1] == 8,]
+scatter3D(x_class8[1,],y_class8[1,],z_class8[1,], main = paste("Gesture for Class 8"))
+```
+
+Class 1,3,4,5 and 8 are very similar to symbol of gestures that are given in the Figure 1.However, Class 2,6 and 7 doesn't look like shapes in the figure.It can be explained that interpretation of  3D data to 2D data is complicated.
+
+### Task B
+The aim of this task is to reduce this multivariate time series (x,y,z) to a univariate one with a dimensionality reduction
+approach.To achieve this task, x,y and z variables are combined and converted wide format to long format.Then, PCA is applied and first component is used to dimension reduction.Then, random time series are selected from each class and visualized the reduced dimensions as time series in a single plot to see if classes can be separated in the reduced dimensions.
+
+```{r}
+x_train$time_series_id <- c(1:896)
+y_train$time_series_id <- c(1:896)
+z_train$time_Series_id <- c(1:896)
+
+x_train_long = pivot_longer(x_train, cols=2:316, names_to = "time_index", values_to = "X")
+y_train_long = pivot_longer(y_train, cols=2:316, names_to = "time_index", values_to = "Y")
+z_train_long = pivot_longer(z_train, cols=2:316, names_to = "time_index", values_to = "Z")
+
+data = cbind(x_train_long,y_train_long[,4],z_train_long[,4])
+
+
+# Apply dimension reduction by using PCA
+
+data_reduced = data[4:6]
+data_pca <- princomp(data_reduced , cor = TRUE)
+summary(data_pca,loadings = TRUE)
+
+# Plot random variables of Class 1 from reduced data
+data_pca_reduced = data_pca$scores
+data = cbind(data,data_pca_reduced[,1])
+names(data)[7] <- "xyz"
+
+class1_pca = data[data[,1] == 1,]
+obs381 = class1_pca[class1_pca[,2] == 381,]
+obs43  = class1_pca[class1_pca[,2] == 43,]
+time = c(1:315)
+class1_pca = cbind(obs381, obs43[,7],time)
+names(class1_pca)[8] <- "xyz2"
+
+ggplot()+
+  geom_line(data=class1_pca,aes(y=xyz,x= time,colour="darkred"),size=1 )+
+  geom_line(data=class1_pca,aes(y=xyz2,x= time,colour="steelblue"),size=1) +
+  scale_color_discrete(name = "Time series id", labels = c("381", "43"))+xlab("Time index")+
+  ylab("Score")+ggtitle("PCA for Class 1")
+
+# Plot random variables of Class 2 from reduced data
+class2_pca = data[data[,1] == 2,]
+obs29 = class2_pca[class2_pca[,2] == 29,]
+obs108  = class2_pca[class2_pca[,2] == 108,]
+time = c(1:315)
+class2_pca = cbind(obs29, obs108[,7],time)
+names(class2_pca)[8] <- "xyz2"
+
+ggplot()+
+  geom_line(data=class2_pca,aes(y=xyz,x= time,colour="darkred"),size=1 )+
+  geom_line(data=class2_pca,aes(y=xyz2,x= time,colour="steelblue"),size=1) +
+  scale_color_discrete(name = "Time series id", labels = c("29", "108"))+xlab("Time index")+
+  ylab("Score")+ggtitle("PCA for Class 2")
+
+# Plot random variables of Class 3 from reduced data
+class3_pca = data[data[,1] == 3,]
+obs13 = class3_pca[class3_pca[,2] == 13,]
+obs163 = class3_pca[class3_pca[,2] == 163,]
+time = c(1:315)
+class3_pca = cbind(obs13, obs163[,7],time)
+names(class3_pca)[8] <- "xyz2"
+
+ggplot()+
+  geom_line(data=class3_pca,aes(y=xyz,x= time,colour="darkred"),size=1 )+
+  geom_line(data=class3_pca,aes(y=xyz2,x= time,colour="steelblue"),size=1) +
+  scale_color_discrete(name = "Time series id", labels = c("13", "163"))+xlab("Time index")+
+  ylab("Score")+ggtitle("PCA for Class 3")
+
+# Plot random variables of Class 4 from reduced data
+class4_pca = data[data[,1] == 4,]
+obs141 = class4_pca[class4_pca[,2] == 141,]
+obs328 = class4_pca[class4_pca[,2] == 328,]
+time = c(1:315)
+class4_pca = cbind(obs141, obs328[,7],time)
+names(class4_pca)[8] <- "xyz2"
+
+ggplot()+
+  geom_line(data=class4_pca,aes(y=xyz,x= time,colour="darkred"),size=1 )+
+  geom_line(data=class4_pca,aes(y=xyz2,x= time,colour="steelblue"),size=1) +
+  scale_color_discrete(name = "Time series id", labels = c("141", "358"))+xlab("Time index")+
+  ylab("Score")+ggtitle("PCA for Class 4")
+
+# Plot random variables of Class 5 from reduced data
+class5_pca = data[data[,1] == 5,]
+obs110 = class5_pca[class5_pca[,2] == 110,]
+obs621 = class5_pca[class5_pca[,2] == 621,]
+time = c(1:315)
+class5_pca = cbind(obs110, obs621[,7],time)
+names(class5_pca)[8] <- "xyz2"
+
+ggplot()+
+  geom_line(data=class5_pca,aes(y=xyz,x= time,colour="darkred"),size=1 )+
+  geom_line(data=class5_pca,aes(y=xyz2,x= time,colour="steelblue"),size=1) +
+  scale_color_discrete(name = "Time series id", labels = c("110", "621"))+xlab("Time index")+
+  ylab("Score")+ggtitle("PCA for Class 5")
+
+# Plot random variables of Class 6 from reduced data
+class6_pca = data[data[,1] == 6,]
+obs84 = class6_pca[class6_pca[,2] == 84,]
+obs366 = class6_pca[class6_pca[,2] == 366,]
+time = c(1:315)
+class6_pca = cbind(obs84, obs366[,7],time)
+names(class6_pca)[8] <- "xyz2"
+
+ggplot()+
+  geom_line(data=class6_pca,aes(y=xyz,x= time,colour="darkred"),size=1 )+
+  geom_line(data=class6_pca,aes(y=xyz2,x= time,colour="steelblue"),size=1) +
+  scale_color_discrete(name = "Time series id", labels = c("84", "366"))+xlab("Time index")+
+  ylab("Score")+ggtitle("PCA for Class 6")
+
+# Plot random variables of Class 7 from reduced data
+class7_pca = data[data[,1] == 7,]
+obs32 = class7_pca[class7_pca[,2] == 32,]
+obs570 = class7_pca[class7_pca[,2] == 570,]
+time = c(1:315)
+class7_pca = cbind(obs32, obs570[,7],time)
+names(class7_pca)[8] <- "xyz2"
+
+ggplot()+
+  geom_line(data=class6_pca,aes(y=xyz,x= time,colour="darkred"),size=1 )+
+  geom_line(data=class6_pca,aes(y=xyz2,x= time,colour="steelblue"),size=1) +
+  scale_color_discrete(name = "Time series id", labels = c("32", "570"))+xlab("Time index")+
+  ylab("Score")+ggtitle("PCA for Class 7")
+
+# Plot random variables of Class 8 from reduced data
+class8_pca = data[data[,1] == 8,]
+obs168 = class8_pca[class8_pca[,2] == 168,]
+obs715 = class8_pca[class8_pca[,2] == 715,]
+time = c(1:315)
+class8_pca = cbind(obs168, obs715[,7],time)
+names(class8_pca)[8] <- "xyz2"
+
+ggplot()+
+  geom_line(data=class6_pca,aes(y=xyz,x= time,colour="darkred"),size=1 )+
+  geom_line(data=class6_pca,aes(y=xyz2,x= time,colour="steelblue"),size=1) +
+  scale_color_discrete(name = "Time series id", labels = c("168", "715"))+xlab("Time index")+
+  ylab("Score")+ggtitle("PCA for Class 8")
+```
+
+The proportion of variance for comp1 is 0.49 , 0.34 for comp2 and 0.16 for comp3  are found from PCA results.The comp1 is used for dimension reduction due to the importance. The plots from each class relatively similar but some of them have different patterns.It is not unexpected since there are some lost variance.
+
+### Task C
+In this task,data is filtered for each class and PCA is performed to compare the first principal component when PCA is applied on the data from each gesture.
+
+```{r}
+# PCA for Class 1
+class1 = data[data[,1] == 1,]
+a = class1[4:6]
+pca.class1 <- princomp(a , cor = TRUE)
+summary(pca.class1, loadings = TRUE)
+
+# PCA for Class 2
+class2 = data[data[,1] == 2,]
+b = class2[4:6]
+pca.class2 <- princomp(b , cor = TRUE)
+summary(pca.class2,loadings = TRUE)
+
+# PCA for Class 3
+class3 = data[data[,1] == 3,]
+c = class3[4:6]
+pca.class3 <- princomp(c ,cor = TRUE)
+summary(pca.class3, loadings = TRUE)
+
+# PCA for Class 4
+class4 = data[data[,1] == 4,]
+d = class4[4:6]
+pca.class4 <- princomp(d , cor = TRUE)
+summary(pca.class4, loadings = TRUE)
+
+# PCA for Class 5 
+class5 = data[data[,1] == 5,]
+e = class5[4:6]
+pca.class5 <- princomp(e , cor = TRUE)
+summary(pca.class5, loadings = TRUE)
+
+# PCA for Class 6
+class6 = data[data[,1] == 6,]
+f = class6[4:6]
+pca.class6 <- princomp(f , cor = TRUE)
+summary(pca.class6, loadings = TRUE)
+
+# PCA for Class 7 
+class7 = data[data[,1] == 7,]
+g = class7[4:6]
+pca.class7 <- princomp(g , cor = TRUE)
+summary(pca.class7, loadings = TRUE)
+
+# PCA for Class 8 
+class8 = data[data[,1] == 8,]
+h = class8[4:6]
+pca.class8 <- princomp(h , cor = TRUE)
+summary(pca.class8, loadings = TRUE)
+```
+According to PCA results that applied each class, the proportion of variance is 0.46, 0.51, 0.54, 0.55, 0.65, 0.57 ,0.52, 0.62 for class1 to 8,respectively. All of classes have more variance for comp1.The difference of results between PCA from all data and each class can be explained due to the linear relationships of components are varying.
+
+### Task D
+The aim is is to visualize the time series in reduced dimensions for classification purposes.Multidimensional scaling is applied to distance matrix to represent each time series on a 2-dimensional feature space.
+
+```{r}
+distance_x_train = dist(x_train[, 2:316], method = 'euclidean')
+distance_y_train = dist(y_train[, 2:316], method = 'euclidean')
+distance_z_train = dist(z_train[, 2:316], method = 'euclidean')
+distance = distance_x_train + distance_y_train + distance_z_train
+fit <- cmdscale(distance,eig = TRUE, k=2) 
+
+# plot for MDS
+
+k <- fit$points[,1]
+m <- fit$points[,2]
+
+mds_data = cbind(x_train[,1],k,m)
+mds_data = as.data.frame(mds_data)
+names(mds_data)[1] <-"class"
+class_col = as.factor(mds_data$class)
+
+ggplot(data = mds_data)+geom_point(mapping = aes(x = k,y = m,colour=class_col))+
+  xlab("Coordinate 1")+ylab("Coordinate 2")+ ggtitle("MDS")+theme(legend.position = "right")
+```
+
+There is no distinct separation of classes.Class 1,2 and 7 are tends to clustering whereas the others have wide spread. MDS method is not useful to get information about class of gestures.
