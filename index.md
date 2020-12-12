@@ -8,5 +8,5 @@
 [Here](files/IE582_Kaya_HW1.html) is Homework 1 and [codes](files/IE582_Kaya_HW1.Rmd)
 
 ## WEEK 2 (December 11)
-[Here](files/IE582_Fall20_Homework2.pdf) is the description of Homework 1 \
-[Here](files/IE582_HW2_KAYA.html) is Homework 1 and [codes](files/IE582_HW2_KAYA.Rmd)
+[Here](files/IE582_Fall20_Homework2.pdf) is the description of Homework 2 \
+[Here](files/IE582_HW2_KAYA.html) is Homework 2 and [codes](files/IE582_HW2_KAYA.Rmd)
