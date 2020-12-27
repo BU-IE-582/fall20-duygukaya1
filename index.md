@@ -10,3 +10,7 @@
 ## WEEK 2 (December 11)
 [Here](files/IE582_Fall20_Homework2.pdf) is the description of Homework 2 \
 [Here](files/IE582_HW2_KAYA.html) is Homework 2 and [codes](files/IE582_HW2_KAYA.Rmd)
+
+## WEEK  (January 01)
+[Here](files/IE582_Fall20_Homework3.pdf) is the description of Homework 2 \
+[Here](files/IE582_HW3_KAYA.html) is Homework 2 and [codes](files/IE582_HW3_KAYA.Rmd)
