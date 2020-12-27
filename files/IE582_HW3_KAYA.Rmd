@@ -1,0 +1,377 @@
+---
+title: "HOMEWORK 3"
+author : "Duygu Kaya - IE582 - Fall 2020"
+due : "January 1"
+output: html_document
+---
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE,warning = F,error = F, message = F)
+
+```
+
+### Penalized Regression Approaches
+The main task of this homework is devising a penalized regression approach to forecast the next day’s hourly consumption. We are trying to predict the tomorrow’s hourly electricity consumption of Turkey.The consumption series are taken from EPİAS.
+
+```{r}
+# HOMEWORK 3
+
+library(stats)
+library(base)
+library(dplyr)
+library(tidyr)
+library(MLmetrics)
+library(glmnet)
+library(reshape2)
+
+# Read data
+all_data <- read.csv("C:\\Users\\kayad\\Desktop\\GercekZamanliTuketim-01012016-01122020.csv", header = TRUE)
+all_data <- all_data[1:43104,] # 01.01.2016 to 30.11.2020
+```
+
+#### TASK A
+In this task, 168 and 48 hours ago consumption values used as naïve approaches to predict next day’s consumption.Hence, 01.01.2016 to 07.01.2016 values are removed.Train data is 08.01.2016 to 30.11.2020 and the rest used for testing data.Then, mape values are found for testing data.
+```{r}
+colnames(all_data) <- c("Date", "Hour","Consumption")
+all_data$Consumption <- as.numeric(gsub(",","",all_data$Consumption ))
+all_data$Consumption <- all_data$Consumption * 1000
+
+# Specify naive forecast as a lag_48 and lag_168
+Consumption <- all_data$Consumption
+lag_168 <- Consumption[1:(length(Consumption)-168)]
+lag_48 <-  Consumption[121:(length(Consumption)-48)]
+
+all_data2 <- all_data[169:43104,]
+all_data_selected <- cbind(all_data2,lag_48,lag_168)
+
+
+# Remove 01.01.2016 to 07.01.2016 and create training and test data
+all_data_3 <- all_data_selected[1:42936,]
+training_data <- all_data_selected[1:42216,] # 08.01.2020 to 31.10.2020
+all_data_4 <- all_data_selected[1:42936,]
+testing_data <-  all_data_3[42217:42936,] # 01.11.2020 to 31.11.2020
+
+ 
+# Calculate MAPE
+mape_testing_lag168 <- MAPE(y_pred = testing_data$lag_168, y_true = testing_data$Consumption)
+mape_testing_lag48 <-  MAPE(y_pred = testing_data$lag_48, y_true = testing_data$Consumption)
+mape_testing_lag168
+mape_testing_lag48
+```
+Mape values are 3.45% and 7.79% for lag168 and lag48, respectively.It can be seen that lag48 shows high error than lag168.The consumption rate of  weekends and weekdays are various.It can cause difference between for lag48 and lag168 errors.Hence, using consumption values of 7 days ago can be more accurate.
+
+#### TASK B
+Linear regression method is applied by using lag48, lag168 and intercept to predict next day's consumption and mape result is reported.
+```{r}
+train_cons <- training_data$Consumption
+train_data<-cbind(training_data$lag_48, training_data$lag_168)
+train_data<-data.frame(train_data)
+
+fit_lreg <- lm(train_cons~.,data = train_data)
+summary(fit_lreg)
+
+X1 <- testing_data$lag_48
+X2 <- testing_data$lag_168
+predicted <- predict(fit_lreg,testing_data)
+
+test_cons <-testing_data$Consumption
+mape_test <- MAPE(y_pred = predicted, y_true = test_cons)
+mape_test
+
+
+plot(test_cons,predicted,xlab = "Actual Consumption", ylab = "Predicted Consumption",col = "red")
+```
+
+In linear regression, x2(lag168) has more importance than x1(lag48) as expected.Hence,using 7 days ago as a approach is reliable to predict next day's consumption.Mape value for testing data is 4.12% and it is high compared to testing error that is found in Task A.The reason is that same coefficients is used for each hour but consumption rate at nights lower than other hours.In order to obtain more accurate results, we have to consider additional variables and information.
+
+#### TASK C
+In order to predict next day consumption,using the same coefficients may not be correct since the consumption behavior at nights can be different and seasonality is important parameter.Therefore, modeling each hour separately can be more accurate approach to the same problem.Linear regression model is implemented for each hour using the same training period (24 models) and mape values are calculated.
+```{r}
+h = c(1:24)
+hours = rep(h, times = 1759)
+hours_test = rep(h,times = 30)
+training_data <- cbind(training_data,hours)
+testing_data <- cbind(testing_data,hours_test)
+
+# Create empty vectors to use in the for loop
+predicted_hour <- c()
+fit_lreg_hour <- c()
+mape_hour <- c()
+coeff <-matrix(0,24,3)
+for (i in 1:24) {
+  hour_data <- filter(training_data, hours == i)
+  train_data_hour <- cbind(hour_data$lag_48, hour_data$lag_168)
+  train_data_hour <- data.frame(train_data_hour)
+  train_cons_hour <- hour_data$Consumption
+  fit_lreg_hour <- lm(train_cons_hour~.,data = train_data_hour)
+  coeff[i,] <- fit_lreg_hour$coefficients
+  hour_data_testing <- filter(testing_data, hours_test == i)
+  X1 = hour_data_testing$lag_48
+  X2 = hour_data_testing$lag_168
+  predicted_hour <- predict(fit_lreg_hour,hour_data_testing)
+
+  test_cons <- hour_data_testing$Consumption
+  mape_hour[i] <-  MAPE(y_pred = predicted_hour, y_true = test_cons)
+  print(mape_hour[i])
+
+}
+
+coeff <- as.data.frame(coeff)
+names(coeff)<- c("Intercept","lag48","lag168")
+print(coeff)
+```
+It can be seen that mape values are varying for different hours.Also, lag 168 has more importance for 06.00 to 18.00  through  the coefficients that means 7 days ago consumption values are significant between these hours.The hourly evaluation without any additional information may not be effective method to predict next day’s consumption but using consumption of one week ago is more reliable in this case.
+
+#### TASK D
+In this task, applying alternative approach  that  all hourly consumption values of last week (same day) can be important in the prediction of the next day’s consumption is considered.The data is converted long format to wide format.Since there is a strong correlation between these predictors,penalized regression approach is used for modeling.Lasso regression is applied for each hour using the same training period (24 models) and test performance is reported.
+
+```{r}
+# Convert data long format to wide format
+# For training data
+training_data_lag48 <- select(training_data, c(1,4,6))
+wide_training48= spread(training_data_lag48, key = hours, value = lag_48)
+training_data_lag168 <- select(training_data, c(1,5,6))
+wide_training168 = spread(training_data_lag168, key = hours, value = lag_168)
+wide_training = cbind(wide_training48,wide_training168[,2:25])
+# For testing data
+testing_data_lag48 <- select(testing_data, c(1,4,6))
+wide_testing48= spread(testing_data_lag48, key = hours_test, value = lag_48)
+testing_data_lag168 <- select(testing_data, c(1,5,6))
+wide_testing168 = spread(testing_data_lag168, key = hours_test, value = lag_168)
+wide_testing = cbind(wide_testing48,wide_testing168[,2:25])
+
+# Add wide format of consumption to train data
+wide_consumption = select(training_data, c(1,3,6))
+wide_cons_training = spread(wide_consumption, key = hours, value = Consumption)
+wide_training = cbind(wide_training,wide_cons_training[,2:25])
+
+
+
+# Add wide format of consumption to train data
+wide_consumption_test = select(testing_data, c(1,3,6))
+wide_cons_testing = spread(wide_consumption_test, key = hours_test, value = Consumption)
+wide_testing = cbind(wide_testing,wide_cons_testing[,2:25])
+
+colnames(wide_testing)[50:73] <- c("cons_01", "cons_02" , "cons_03", "cons_04","cons_05","cons_06",
+                                   "cons_07", "cons_08" , "cons_09", "cons_10","cons_11","cons_12",
+                                   "cons_13", "cons_14" , "cons_15", "cons_16","cons_17","cons_18",                              
+                                   "cons_19", "cons_20" , "cons_21", "cons_22","cons_23","cons_24")
+
+
+
+wtrain_cons = wide_cons_training[,2:25]
+wtrain_data = wide_training[,2:49]
+wtest_data = wide_testing[,2:49]
+wtrain_data = as.matrix(wtrain_data)
+wtest_data = as.matrix(wtest_data)
+
+# Mape for 00:00
+wtrain_cons1 = as.matrix(wtrain_cons[,1])
+cv1 = cv.glmnet(wtrain_data,wtrain_cons1,nfolds=10,family ='gaussian')$lambda.min
+lasso1 = glmnet(wtrain_data, wtrain_cons1, family='gaussian',lambda = cv1)
+predict1<-predict(lasso1,wtest_data)
+wide_cons1 = wide_cons_testing[,2]
+mape1 = MAPE(y_pred = predict1, y_true = wide_cons1)
+
+# Mape for 01:00
+wtrain_cons2 = as.matrix(wtrain_cons[,2])
+cv2 = cv.glmnet(wtrain_data,wtrain_cons2,nfolds=10,family ='gaussian')$lambda.min
+lasso2 = glmnet(wtrain_data, wtrain_cons2, family='gaussian',lambda = cv2)
+predict2<-predict(lasso2,wtest_data)
+wide_cons2 = wide_cons_testing[,3]
+mape2 = MAPE(y_pred = predict2, y_true = wide_cons2)
+
+# Mape for 02:00
+wtrain_cons3 = as.matrix(wtrain_cons[,3])
+cv3 = cv.glmnet(wtrain_data,wtrain_cons3,nfolds=10,family ='gaussian')$lambda.min
+lasso3 = glmnet(wtrain_data, wtrain_cons3, family='gaussian',lambda = cv3)
+predict3<-predict(lasso3,wtest_data)
+wide_cons3 = wide_cons_testing[,4]
+mape3 = MAPE(y_pred = predict3, y_true = wide_cons3)
+
+# Mape for 03:00
+wtrain_cons4 = as.matrix(wtrain_cons[,4])
+cv4 = cv.glmnet(wtrain_data,wtrain_cons4,nfolds=10,family ='gaussian')$lambda.min
+lasso4 = glmnet(wtrain_data, wtrain_cons4, family='gaussian',lambda = cv4)
+predict4<-predict(lasso4,wtest_data)
+wide_cons4 = wide_cons_testing[,5]
+mape4 = MAPE(y_pred = predict4, y_true = wide_cons4)
+
+# Mape for 04:00 
+wtrain_cons5 = as.matrix(wtrain_cons[,5])
+cv5 = cv.glmnet(wtrain_data,wtrain_cons5,nfolds=10,family ='gaussian')$lambda.min
+lasso5 = glmnet(wtrain_data, wtrain_cons5, family='gaussian',lambda = cv5)
+predict5<-predict(lasso5,wtest_data)
+wide_cons5 = wide_cons_testing[,6]
+mape5 = MAPE(y_pred = predict5, y_true = wide_cons5)
+
+# Mape for 05:00 
+wtrain_cons6 = as.matrix(wtrain_cons[,6])
+cv6 = cv.glmnet(wtrain_data,wtrain_cons6,nfolds=10,family ='gaussian')$lambda.min
+lasso6 = glmnet(wtrain_data, wtrain_cons6, family='gaussian',lambda = cv6)
+predict6<-predict(lasso6,wtest_data)
+wide_cons6 = wide_cons_testing[,7]
+mape6 = MAPE(y_pred = predict6, y_true = wide_cons6)
+
+# Mape for 06:00
+wtrain_cons7 = as.matrix(wtrain_cons[,7])
+cv7 = cv.glmnet(wtrain_data,wtrain_cons7,nfolds=10,family ='gaussian')$lambda.min
+lasso7 = glmnet(wtrain_data, wtrain_cons7, family='gaussian',lambda = cv7)
+predict7<-predict(lasso7,wtest_data)
+wide_cons7 = wide_cons_testing[,8]
+mape7 = MAPE(y_pred = predict7, y_true = wide_cons7)
+
+# Mape for 07:00
+wtrain_cons8 = as.matrix(wtrain_cons[,8])
+cv8 = cv.glmnet(wtrain_data,wtrain_cons8,nfolds=10,family ='gaussian')$lambda.min
+lasso8 = glmnet(wtrain_data, wtrain_cons8, family='gaussian',lambda = cv8)
+predict8<-predict(lasso8,wtest_data)
+wide_cons8 = wide_cons_testing[,9]
+mape8 = MAPE(y_pred = predict8, y_true = wide_cons8)
+
+# Mape for 08:00
+wtrain_cons9 = as.matrix(wtrain_cons[,9])
+cv9 = cv.glmnet(wtrain_data,wtrain_cons9,nfolds=10,family ='gaussian')$lambda.min
+lasso9 = glmnet(wtrain_data, wtrain_cons9, family='gaussian',lambda = cv9)
+predict9<-predict(lasso9,wtest_data)
+wide_cons9 = wide_cons_testing[,10]
+mape9 = MAPE(y_pred = predict9, y_true = wide_cons9)
+
+# Mape for 09:00 
+wtrain_cons10 = as.matrix(wtrain_cons[,10])
+cv10 = cv.glmnet(wtrain_data,wtrain_cons10,nfolds=10,family ='gaussian')$lambda.min
+lasso10 = glmnet(wtrain_data, wtrain_cons10, family='gaussian',lambda = cv10)
+predict10<-predict(lasso10,wtest_data)
+wide_cons10 = wide_cons_testing[,11]
+mape10 = MAPE(y_pred = predict10, y_true = wide_cons10)
+
+# Mape for 10:00
+wtrain_cons11 = as.matrix(wtrain_cons[,11])
+cv11 = cv.glmnet(wtrain_data,wtrain_cons11,nfolds=10,family ='gaussian')$lambda.min
+lasso11 = glmnet(wtrain_data, wtrain_cons11, family='gaussian',lambda = cv11)
+predict11<-predict(lasso11,wtest_data)
+wide_cons11 = wide_cons_testing[,12]
+mape11 = MAPE(y_pred = predict11, y_true = wide_cons11)
+
+# Mape for 11:00
+wtrain_cons12 = as.matrix(wtrain_cons[,12])
+cv12 = cv.glmnet(wtrain_data,wtrain_cons12,nfolds=10,family ='gaussian')$lambda.min
+lasso12 = glmnet(wtrain_data, wtrain_cons12, family='gaussian',lambda = cv12)
+predict12<-predict(lasso12,wtest_data)
+wide_cons12 = wide_cons_testing[,13]
+mape12 = MAPE(y_pred = predict12, y_true = wide_cons12)
+
+# Mape for 12:00
+wtrain_cons13 = as.matrix(wtrain_cons[,13])
+cv13 = cv.glmnet(wtrain_data,wtrain_cons13,nfolds=10,family ='gaussian')$lambda.min
+lasso13 = glmnet(wtrain_data, wtrain_cons13, family='gaussian',lambda = cv13)
+predict13<-predict(lasso13,wtest_data)
+wide_cons13 = wide_cons_testing[,14]
+mape13 = MAPE(y_pred = predict13, y_true = wide_cons13)
+
+# Mape for 13:00
+wtrain_cons14 = as.matrix(wtrain_cons[,14])
+cv14 = cv.glmnet(wtrain_data,wtrain_cons14,nfolds=10,family ='gaussian')$lambda.min
+lasso14 = glmnet(wtrain_data, wtrain_cons14, family='gaussian',lambda = cv14)
+predict14<-predict(lasso14,wtest_data)
+wide_cons14 = wide_cons_testing[,15]
+mape14 = MAPE(y_pred = predict14, y_true = wide_cons14)
+
+# Mape for 14:00
+wtrain_cons15 = as.matrix(wtrain_cons[,15])
+cv15 = cv.glmnet(wtrain_data,wtrain_cons15,nfolds=10,family ='gaussian')$lambda.min
+lasso15 = glmnet(wtrain_data, wtrain_cons15, family='gaussian',lambda = cv15)
+predict15<-predict(lasso15,wtest_data)
+wide_cons15 = wide_cons_testing[,16]
+mape15 = MAPE(y_pred = predict15, y_true = wide_cons15)
+
+# Mape for 15:00
+wtrain_cons16 = as.matrix(wtrain_cons[,16])
+cv16 = cv.glmnet(wtrain_data,wtrain_cons16,nfolds=10,family ='gaussian')$lambda.min
+lasso16 = glmnet(wtrain_data, wtrain_cons16, family='gaussian',lambda = cv16)
+predict16<-predict(lasso16,wtest_data)
+wide_cons16 = wide_cons_testing[,17]
+mape16 = MAPE(y_pred = predict16, y_true = wide_cons16)
+
+# Mape for 16:00
+wtrain_cons17 = as.matrix(wtrain_cons[,17])
+cv17 = cv.glmnet(wtrain_data,wtrain_cons17,nfolds=10,family ='gaussian')$lambda.min
+lasso17 = glmnet(wtrain_data, wtrain_cons17, family='gaussian',lambda = cv17)
+predict17<-predict(lasso17,wtest_data)
+wide_cons17 = wide_cons_testing[,18]
+mape17 = MAPE(y_pred = predict17, y_true = wide_cons17)
+
+# Mape for 17:00
+wtrain_cons18 = as.matrix(wtrain_cons[,18])
+cv18 = cv.glmnet(wtrain_data,wtrain_cons18,nfolds=10,family ='gaussian')$lambda.min
+lasso18 = glmnet(wtrain_data, wtrain_cons18, family='gaussian',lambda = cv18)
+predict18<-predict(lasso18,wtest_data)
+wide_cons18 = wide_cons_testing[,19]
+mape18 = MAPE(y_pred = predict18, y_true = wide_cons18)
+
+# Mape for 18:00
+wtrain_cons19 = as.matrix(wtrain_cons[,19])
+cv19 = cv.glmnet(wtrain_data,wtrain_cons19,nfolds=10,family ='gaussian')$lambda.min
+lasso19 = glmnet(wtrain_data, wtrain_cons19, family='gaussian',lambda = cv19)
+predict19<-predict(lasso19,wtest_data)
+wide_cons19 = wide_cons_testing[,20]
+mape19 = MAPE(y_pred = predict19, y_true = wide_cons19)
+
+# Mape for 19:00
+wtrain_cons20 = as.matrix(wtrain_cons[,20])
+cv20 = cv.glmnet(wtrain_data,wtrain_cons20,nfolds=10,family ='gaussian')$lambda.min
+lasso20 = glmnet(wtrain_data, wtrain_cons20, family='gaussian',lambda = cv20)
+predict20<-predict(lasso20,wtest_data)
+wide_cons20 = wide_cons_testing[,21]
+mape20 = MAPE(y_pred = predict20, y_true = wide_cons20)
+
+# Mape for 20:00
+wtrain_cons21 = as.matrix(wtrain_cons[,21])
+cv21 = cv.glmnet(wtrain_data,wtrain_cons21 ,nfolds=10,family ='gaussian')$lambda.min
+lasso21  = glmnet(wtrain_data, wtrain_cons21 , family='gaussian',lambda = cv21 )
+predict21 <-predict(lasso21 ,wtest_data)
+wide_cons21  = wide_cons_testing[,22]
+mape21  = MAPE(y_pred = predict21 , y_true = wide_cons21 )
+
+# Mape for 21:00
+wtrain_cons22 = as.matrix(wtrain_cons[,22])
+cv22 = cv.glmnet(wtrain_data,wtrain_cons22 ,nfolds=10,family ='gaussian')$lambda.min
+lasso22  = glmnet(wtrain_data, wtrain_cons22 , family='gaussian',lambda = cv22 )
+predict22 <-predict(lasso22 ,wtest_data)
+wide_cons22  = wide_cons_testing[,23]
+mape22  = MAPE(y_pred = predict22 , y_true = wide_cons22 )
+
+# Mape for 22:00
+wtrain_cons23 = as.matrix(wtrain_cons[,23])
+cv23 = cv.glmnet(wtrain_data,wtrain_cons23 ,nfolds=10,family ='gaussian')$lambda.min
+lasso23  = glmnet(wtrain_data, wtrain_cons23 , family='gaussian',lambda = cv23 )
+predict23 <-predict(lasso23 ,wtest_data)
+wide_cons23  = wide_cons_testing[,24]
+mape23  = MAPE(y_pred = predict23 , y_true = wide_cons23 )
+
+# Mape for 23:00
+wtrain_cons24 = as.matrix(wtrain_cons[,24])
+cv24 = cv.glmnet(wtrain_data,wtrain_cons24 ,nfolds=10,family ='gaussian')$lambda.min
+lasso24  = glmnet(wtrain_data, wtrain_cons24 , family='gaussian',lambda = cv24 )
+predict24 <-predict(lasso24 ,wtest_data)
+wide_cons24  = wide_cons_testing[,25]
+mape24  = MAPE(y_pred = predict24 , y_true = wide_cons24)
+
+mape_lasso_hour = rbind(mape1,mape2,mape3,mape4,mape5,mape6,mape7,mape8,mape9,mape10,mape11,mape12,
+                          mape13,mape14,mape15,mape16,mape17,mape18,mape19,mape20,mape21,mape22,mape23,mape24)
+print(mape_lasso_hour)
+```
+
+The errors that are obtained by using lasso regression are low compared to mape values from Task C for hourly consumption data.Also,mape values are decreased when the data become more complex and non-zero values are low. So, using lasso regression with more variable provides more reliable results in this case.
+
+#### TASK F
+
+```{r}
+# Draw multiple box plot 
+boxplot(mape_hour, mape_lasso_hour,
+        main = "Linear Regression & Lasso Regression",
+        col=c("gold","pink"))
+```
+
+In conclusion, linear regression median is bigger than lasso regression as shown in the Figure that means linear regression has low variance compared to lasso regression.However,lasso regression has lower error than linear regression.Hence, using lasso regression for hourly data to predict next day's consumption behavior is reliable method in this case.
+
+
