@@ -1,0 +1,292 @@
+---
+title: "HOMEWORK 4"
+author : "Duygu Kaya - IE582 - Fall 2020"
+due : "January 29"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE,warning = F,error = F, message = F)
+```
+
+## DATASET 3 : STUDENT PERFORMANCE 
+This data approach student achievement in secondary education of two Portuguese schools. The data attributes include student grades, demographic, social and school related features.Two datasets are provided regarding the performance in two distinct subjects: Mathematics and Portuguese language.In this study portugues language data is used for regression type. The target attribute G3(final grades) has a strong correlation with attributes G2 and G1(midterms).Hence, G1 and G2 are removed to obtain more accurate results.It is  more difficult to predict G3 without G2 and G1, but such prediction is much more useful.The data consists categorical and numerical features.Therefore, dummy coding is implemented to handle categorical variables.
+
+* Regression
+* 33 attributes
+* 649 instances
+* Categorical and numerical features
+
+```{r}
+# HOMEWORK 4//PART 3
+
+library(tidyverse)
+library(dplyr)
+library(stringr)
+library(glmnet)
+library(stats)
+library(base)
+library(caret)
+library(rpart)
+library(rattle)
+library(readxl)
+library(Metrics)
+library(penalized)
+library(randomForest)
+library(gbm)
+
+# STUDENT PERFORMANCE DATASET
+
+student<- read.table("student-por.csv",sep=";",header=TRUE,na.strings = c("?","NA") )
+final_grades <- student$G3
+
+# train and test data
+
+student <- subset(student,select=-c(G1,G2,G3))
+student <- cbind(final_grades,student)
+
+dummy  <-dummyVars(" ~ .", data = student)
+dummy <- data.frame(predict(dummy, newdata = student))
+
+# 80% of the sample size
+smp_size <- floor(0.8 * nrow(student))
+
+set.seed(123)
+train_ind <- sample(seq_len(nrow(student)), size = smp_size)
+
+student_training <-student[train_ind, ]
+student_test <- student[-train_ind, ]
+
+# cv data
+
+student_training<-student_training[sample(nrow(student_training)),]
+
+folds <- cut(seq(1,nrow(student_training)),breaks=10,labels=FALSE)
+for(i in 1:10){
+  testIndexes <- which(folds==i,arr.ind=TRUE)
+  student_cv <- student_training[testIndexes, ]
+  student_train <- student_training[-testIndexes, ]
+}
+
+
+# train and test data for dummy data
+# 80% of the sample size
+
+smp_size_dummy <- floor(0.8 * nrow(dummy))
+
+set.seed(123)
+train_ind_dummy <- sample(seq_len(nrow(dummy)), size = smp_size_dummy)
+
+dummy_training <-dummy[train_ind_dummy, ]
+dummy_test <- dummy[-train_ind_dummy, ]
+
+# cv data
+
+dummy_training<-dummy_training[sample(nrow(dummy_training)),]
+
+folds <- cut(seq(1,nrow(dummy_training)),breaks=10,labels=FALSE)
+for(i in 1:10){
+  testIndexes_dummy <- which(folds==i,arr.ind=TRUE)
+  dummy_cv <- dummy_training[testIndexes_dummy, ]
+  dummy_train <- dummy_training[-testIndexes_dummy, ]
+}
+
+
+
+
+```
+
+
+### PENALIZED REGRESSION APPROACH
+```{r}
+
+class1 <- student_train$final_grades
+class1 <- as.matrix(class1)
+class2 <- student_test$final_grades
+class3 <- student_cv$final_grades
+class3 <- as.numeric(as.character(class3))
+class2 <- as.numeric(as.character(class2))
+class2 <- as.matrix(class2)
+class3 <- as.matrix(class3)
+dummy_train_lasso <- as.matrix(dummy_train[,2:57])
+dummy_test_lasso <- as.matrix(dummy_test[,2:57])
+dummy_cv_lasso <- as.matrix(dummy_cv[,2:57])
+
+
+cv_student <- cv.glmnet(as.matrix(dummy_train_lasso), class1, family = "gaussian")
+lambda_min <- cv_student$lambda.min
+plot(cv_student)
+
+
+lasso1 <- glmnet( dummy_train_lasso, dummy_train$final_grades, family='gaussian',lambda = lambda_min)
+predict1<- predict(lasso1,dummy_test_lasso)
+predict_cv1 <- predict(lasso1,dummy_cv_lasso)
+mse_cv_lasso1 <- mse(predict_cv1,class3)/100
+mse_lasso1 <- mse(predict1,class2)/100
+
+# L1 penalty with different lambdas (0.3,0.5)
+
+lasso2 <- glmnet( dummy_train_lasso, dummy_train$final_grades, family='gaussian',lambda = 0.3)
+predict_cv2 <- predict(lasso2,dummy_cv_lasso)
+predict2 <- predict(lasso2,dummy_test_lasso)
+mse_cv_lasso2 <- mse(predict_cv2,class3)/100
+mse_lasso2 <- mse(predict2,class2)/100
+
+lasso3 <- glmnet( dummy_train_lasso, dummy_train$final_grades, family='gaussian',lambda = 0.5)
+predict_cv3 <- predict(lasso3,dummy_cv_lasso)
+predict3 <-predict(lasso3,dummy_test_lasso)
+mse_cv_lasso3 <- mse(predict_cv3,class3)/100
+mse_lasso3 <- mse(predict3,class2)/100
+
+# Table
+lambda_012<-c("0.12","0.053","0.100")
+lambda_03<-c("0.03","0.054","0.105")
+lambda_05<-c("0.5","0.061","0.110")
+PRA_TABLE <-rbind(lambda_012,lambda_03,lambda_05)
+PRA_TABLE<- as.data.frame(PRA_TABLE)
+colnames(PRA_TABLE)<-c("lambda","cv error","test error")
+PRA_TABLE
+
+
+```
+
+### DECISION TREE APPROACH
+```{r}
+
+# DECISION TEREE METHOD
+
+test_class <- student_test[,1]
+cv_class <- student_cv[,1]
+
+student_test_DT <- student_test[,2:31]
+student_cv_DT <- student_cv[,2:31]
+
+final_test <- student_test$final_grades
+final_cv <- student_cv$final_grades
+
+
+reg_tree_1 = rpart(final_grades~.,data = student_train)
+
+plotcp(reg_tree_1)
+printcp(reg_tree_1)
+reg_tree_1$variable.importance
+fancyRpartPlot(reg_tree_1)
+
+
+cp = c(0.01,0.03,0.05)
+minsplit = c(3,5,10,15)
+
+mse_cv_DT<- c()
+mse_DT<-c()
+DT_TABLE <-matrix(0,4,12)
+test_pred <- matrix(0,121,12)
+cv_pred<- matrix(0,48,12)
+
+i=1
+for(k in 1:length(minsplit)){
+  for(l in 1:length(cp)){
+    reg_tree <- rpart(final_grades~.,data = student_train,control = rpart.control(cp = cp[l],minsplit = minsplit[k]))
+    reg_tree_cv <- rpart(final_grades~.,data = student_train, control = rpart.control(cp = cp[l],minsplit = minsplit[k]))
+    testp <-predict(reg_tree, student_test_DT)
+    cv_p  <- predict(reg_tree_cv,student_cv_DT)
+    cv_pred[,i] <- as.numeric(as.character(cv_p))
+    test_pred[,i] <- as.numeric(as.character(testp))
+    test_final <- final_test
+    cv_final <- final_cv
+    mse_cv_DT[i]<- mse(cv_pred[,i],cv_final)/100
+    mse_DT[i] <- mse(test_pred[,i],test_final)/100
+    DT_TABLE <- cbind(mse_DT,mse_cv_DT, minsplit,cp)
+    i = i+1
+  }
+}
+DT_TABLE
+
+```
+
+### RANDOM FOREST APPROACH
+```{r}
+
+# RANDOM FOREST MODEL 
+
+student_train$final_grades <- as.factor(as.character(student_train$final_grades))
+student_test$final_grades  <- as.factor(as.character(student_test$final_grades))
+
+
+# mtry 10
+
+rforest1<- randomForest(student_train[,2:31],student_train$final_grades,ntree = 500 , nodesize = 5, mtry = 10) 
+pred_cv_RF1<-predict(rforest1,student_cv[,2:31])
+pred_cv_RF1<-as.numeric(as.character(pred_cv_RF1))
+pred_RF1<-predict(rforest1,student_test[,2:31])
+pred_RF1<-as.numeric(as.character(pred_RF1))
+mse_cv_RF1<- mse(pred_cv_RF1,final_cv)/100
+mse_RF1 <- mse(pred_RF1,final_test)/100
+
+# mtry 30
+
+rforest2<- randomForest(student_train[,2:31],student_train$final_grades,ntree = 500 , nodesize = 5, mtry = 30) 
+pred_cv_RF2<-predict(rforest2,student_cv[,2:31])
+pred_cv_RF2<-as.numeric(as.character(pred_cv_RF2))
+pred_RF2<-predict(rforest2,student_test[,2:31])
+pred_RF2<-as.numeric(as.character(pred_RF2))
+mse_cv_RF2<- mse(pred_cv_RF1,final_cv)/100
+mse_RF2 <- mse(pred_RF1,final_test)/100
+
+# mtry 5 
+
+rforest3<- randomForest(student_train[,2:31],student_train$final_grades,ntree = 500 , nodesize = 5, mtry = 5) 
+pred_cv_RF3<-predict(rforest3,student_cv[,2:31])
+pred_cv_RF3<-as.numeric(as.character(pred_cv_RF3))
+pred_RF3<-predict(rforest3,student_test[,2:31])
+pred_RF3<-as.numeric(as.character(pred_RF3))
+mse_cv_RF3<- mse(pred_cv_RF3,final_cv)/100
+mse_RF3 <- mse(pred_RF3,final_test)/100
+
+# Table
+mtry5<-c("5","0.077","0.117")
+mtry10<-c("10","0.074","0.125")
+mtry30<-c("30","0.074","0.125")
+RF_TABLE <-rbind(mtry5,mtry10,mtry30)
+RF_TABLE<- as.data.frame(RF_TABLE)
+colnames(RF_TABLE)<-c("mtry","cv error","test error")
+RF_TABLE
+
+```
+
+# STOCHASTIC GRADIENT BOOSTING APPROACH
+```{r}
+
+# STOCHASTIC GRADIENT BOOSTING
+
+mse_cv_sgb <- c()
+mse_sgb <- c()
+pred_test_sgb <-matrix(0,121,27)
+pred_cv_sgb<-matrix(0,48,27)
+SGB_TABLE <-matrix(0,5,27)
+grades <- dummy_train[,1]
+
+shrinkage= c(0.01,0.1,0.5)
+ntree=c(100,300,500)
+interaction_depth =c(1,2,3)
+
+j=1
+for(m in 1:length(ntree)){
+  for(n in 1:length(shrinkage)){
+    for(p in 1:length(interaction_depth)){
+      
+      sgb <- gbm(grades~.,data = dummy_train[,2:57],distribution ="gaussian",n.trees = ntree[m],shrinkage = shrinkage[n], interaction.depth = interaction_depth[p])
+      sgb_cv <- gbm(grades~.,data = dummy_train[,2:57],distribution ="gaussian",n.trees = ntree[m],shrinkage = shrinkage[n], interaction.depth = interaction_depth[p])
+      pred_cv_sgb [,j] <-predict(sgb_cv,dummy_cv[,2:57])
+      pred_test_sgb[,j] <- predict(sgb,dummy_test[,2:57])
+      mse_cv_sgb[j] <-mse(pred_cv_sgb[,j],class3)/100
+      mse_sgb[j]<- mse(pred_test_sgb[,j],class2)/100
+      SGB_TABLE <- cbind(mse_DT,mse_cv_DT, ntree,shrinkage,interaction_depth)
+      j=j+1
+    }
+  }
+}
+
+SGB_TABLE 
+
+```
+Penalized regression approach can be more useful since regression data is performed.The best lambda is found 0.129 which minimize the error 0.1%.The errors are increased with increased lambda levels.The best results is obtained with optimum lambda.All methods have similar errors for different parameters.The complexity parameter is found nearly 0.01 with 10 tree size for minimum error that can be seen from table in decision tree approach.There is no significant change with number of randomly selected variables.However, the minimum error is obtained with mtry=5 for random forest approach.Also, stochastic gradient approach have reasonable results.
