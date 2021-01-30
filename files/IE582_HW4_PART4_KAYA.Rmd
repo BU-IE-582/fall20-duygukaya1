@@ -1,0 +1,218 @@
+---
+title: "HOMEWORK 4"
+author : "Duygu Kaya - IE582 - Fall 2020"
+due : "January 29"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE,warning = F,error = F, message = F)
+```
+
+## DATASET 4 : COVERTYPE DATASET
+The aim of covertype dataset is predicting forest cover type from cartographic variables such as soil type, slope and wilderness area.There are 7 forest cover type, and the data consist class imbalance.In this context, many classification learning algorithms can have low predictive accuracy for the minority classes.Hence, downsampling method is used with caret package to overcome class imbalance issue.20000 instances are randomly selected duw to the computational issues.The data is already dummy-coding , there is no need any preprocessing.
+
+* Multiclass Classification
+* 54 attributes
+* Class Imbalance
+* 581012 instances
+* Numerical features
+
+```{r}
+# HOMEWORK 4/PART 4
+
+library(tidyverse)
+library(dplyr)
+library(stringr)
+library(glmnet)
+library(stats)
+library(base)
+library(caret)
+library(rpart)
+library(rattle)
+library(readxl)
+library(Metrics)
+library(penalized)
+library(randomForest)
+library(gbm)
+library(plyr)
+library(ggplot2)
+library(DMwR)
+
+# COVERTYPE DATASET
+covertype <- read.table("C:\\Users\\kayad\\Desktop\\covtype.data.gz",sep = ",")
+covertype <- covertype[sample(nrow(covertype), 20000), ]
+colnames(covertype)[colnames(covertype) == "V55"] <- "class"
+covertype <- subset(covertype,select=-c(V21,V29,V39,V48))
+
+qplot(covertype$class,geom="histogram",binwidth = 0.8, main = "Classes", xlab = "Class",  ylab = "Frequency",col = "red", fill ="red", alpha=0.3)+theme(legend.position = "none")
+covertype$class <- as.factor(as.character(covertype$class))
+covertype_balanced <-caret::downSample(covertype, covertype$class)
+covertype_balanced$class <- as.numeric(as.character(covertype_balanced$class))
+qplot(covertype_balanced$class,geom="histogram",binwidth = 0.8, main = "Classes", xlab = "Class",  ylab = "Frequency",col = "red", fill ="red", alpha=0.3)+theme(legend.position = "none")
+
+# train and test data
+
+# 80% of the sample size
+smp_size <- floor(0.8 * nrow(covertype_balanced))
+
+set.seed(123)
+train_ind <- sample(seq_len(nrow(covertype_balanced)), size = smp_size)
+
+covertype_training <-covertype_balanced[train_ind, ]
+covertype_test <- covertype_balanced[-train_ind, ]
+
+# cv data
+
+covertype_training<-covertype_training[sample(nrow(covertype_training)),]
+
+folds <- cut(seq(1,nrow(covertype_training)),breaks=10,labels=FALSE)
+for(i in 1:10){
+  testIndexes <- which(folds==i,arr.ind=TRUE)
+  covertype_cv <- covertype_training[testIndexes, ]
+  covertype_train <- covertype_training[-testIndexes, ]
+}
+```
+
+
+### PENALIZED REGRESSION APPROACH
+```{r}
+
+# PENALIZED REGRESSION METHOD
+covertype$class <- as.factor(as.character(covertype$class))
+class  <- as.factor(covertype_train$class)
+class2 <- as.factor(covertype_test$class)
+class3 <- as.factor(covertype_cv$class)
+class  <- as.matrix(class)
+class2 <- as.matrix(class2)
+class3 <- as.matrix(class3)
+covertype_train_lasso <- covertype_train[,1:51]
+covertype_train_lasso <- as.matrix(covertype_train_lasso )
+covertype_test_lasso <- covertype_test[,1:51]
+covertype_test_lasso <- as.matrix(covertype_test_lasso )
+covertype_cv_lasso <- covertype_cv[,1:51]
+covertype_cv_lasso <- as.matrix(covertype_cv_lasso )
+
+
+cv_covertype<- cv.glmnet(covertype_train_lasso, class, type.measure = "class" ,family = "multinomial")
+lambda_min <- cv_covertype$lambda.min
+plot(cv_covertype)
+
+
+lasso1 <- glmnet(covertype_train_lasso,covertype_train$class, type.measure = "class" ,family = "multinomial",lambda = 0.1)
+predict1<- predict(lasso1,covertype_test_lasso, type="class")
+predict_cv1 <- predict(lasso1,covertype_cv_lasso,type="class")
+table1 <- table(class2,predict1) 
+error_test1= 1-sum(diag(table1))/nrow(covertype_test)
+error_test1
+```
+
+
+### DECISION TREE APPROACH
+```{r}
+covertype_train_DT <- covertype_train[,1:51]
+covertype_train_DT <- cbind(class,covertype_train_DT)
+covertype_test_DT <- covertype_test[,1:51]
+covertype_cv_DT <- covertype_cv[,1:51]
+
+cla_tree_1 = rpart(class~.,data = covertype_train_DT,method = 'class')
+
+plotcp(cla_tree_1)
+printcp(cla_tree_1)
+cla_tree_1$variable.importance
+
+error_DT<-c()
+error_cv_DT<-c()
+DT_TABLE<- matrix(0,4,12)
+cp <- c(0.001,0.005,0.01)
+minsplit <- c(5,10,15,20)
+
+
+i=1
+for(k in 1:length(minsplit)){
+  for(l in 1:length(cp)){
+    cla_tree <- rpart(class~.,data = covertype_train_DT, method='class', control = rpart.control(cp = cp[l],minsplit = minsplit[k]))
+    cla_tree_cv <- rpart(class~.,data = covertype_train_DT, method='class', control = rpart.control(cp = cp[l],minsplit = minsplit[k]))
+    testp <-predict(cla_tree, covertype_test_DT, type = 'class')
+    cv_p  <- predict(cla_tree_cv, covertype_cv_DT, type = 'class')
+    cv_pred <- as.factor(as.character(cv_p))
+    test_pred <- as.factor(as.character(testp))
+    table_test <- table(class2,test_pred)
+    table_cv <- table(class3,cv_pred)
+    error_cv_DT[i]<-1-sum(diag(table_cv))/nrow(covertype_cv)
+    error_DT[i] <- 1-sum(diag(table_test))/nrow(covertype_test)
+    i = i+1
+    DT_TABLE <- cbind(error_DT,error_cv_DT, minsplit,cp)
+  }
+}
+DT_TABLE
+```
+
+### RANDOM FOREST TREE
+```{r}
+# RANDOM FOREST
+rforest1 <- randomForest(covertype_train[,1:51],as.factor(covertype_train$class),ntree=500,nodesize =5,mtry = 10)
+predict_RF1 <- predict(rforest1,covertype_test[,1:51])
+tableRF1<-table(covertype_test$class,predict_RF1)
+error_RF1<- 1-sum(diag(tableRF1))/nrow(covertype_test)
+
+rforest2 <- randomForest(covertype_train[,1:51],as.factor(covertype_train$class),ntree=500,nodesize =5,mtry = 30) 
+predict_RF2 <- predict(rforest2,covertype_test[,1:51])
+tableRF2<-table(covertype_test$class,predict_RF2)
+error_RF2<- 1-sum(diag(tableRF2))/nrow(covertype_test)
+
+rforest3 <- randomForest(covertype_train[,1:51],as.factor(covertype_train$class),ntree=500,nodesize =5,mtry = 5) 
+predict_RF3 <- predict(rforest3,covertype_test[,1:51])
+tableRF3 <-table(covertype_test$class,predict_RF3)
+error_RF3 <- 1-sum(diag(tableRF3))/nrow(covertype_test)
+
+# Table
+mtry5<-c("5","0.013")
+mtry10<-c("10","0")
+mtry30<-c("30","0.069")
+RF_TABLE <-rbind(mtry5,mtry10,mtry30)
+RF_TABLE<- as.data.frame(RF_TABLE)
+colnames(RF_TABLE)<-c("mtry","test error")
+RF_TABLE
+```
+
+### STOCHASTIC GRADIENT BOOSTING APPROACH
+
+```{r}
+
+# STOCHASTIC GRADIENT BOOSTING
+
+error_cv_sgb <- c()
+error_sgb <- c()
+SGB_TABLE <-matrix(0,5,27)
+
+shrinkage= c(0.01,0.1,0.5)
+ntree=c(100,300,500)
+interaction_depth =c(1,2,3)
+
+j=1
+for(m in 1:length(ntree)){
+  for(n in 1:length(shrinkage)){
+    for(p in 1:length(interaction_depth)){
+      sgb <- gbm(class~.,data = covertype_train[,1:51],distribution ="multinomial",n.trees = ntree[m],shrinkage = shrinkage[n], interaction.depth = interaction_depth[p])
+      sgb_cv <- gbm(class~.,data = covertype_train[,1:51],distribution ="multinomial",n.trees = ntree[m],shrinkage = shrinkage[n], interaction.depth = interaction_depth[p])
+      pred_cv_sgb <-predict(sgb_cv,covertype_cv[,1:50],type ="response")
+      pred_test_sgb <-predict(sgb,covertype_test[,1:50],type="response")
+      pred_test_class<- apply(pred_test_sgb, 1, which.max)
+      pred_cv_class <- apply(pred_cv_sgb, 1, which.max)
+      table_test_sgb <- table(covertype_test$Class, pred_test_class)
+      table_cv_sgb <- table(covertype_cv$Class,pred_cv_class)  
+      error_cv_sgb[j]<-1-sum(diag(table_cv_sgb))/nrow(covertype_cv)
+      error_sgb[j] <- 1-sum(diag(table_test_sgb))/nrow(covertype_test)
+      SGB_TABLE <- cbind(error_sgb,error_cv_sgb, ntree,shrinkage,interaction_depth)
+      j=j+1
+      
+    }
+  }
+}
+
+SGB_TABLE
+
+```
+
+The error rates are higher than other datasets for each approach.It is expected that multiclass classification is more complex and the probability of misclassification is high.In order to obtain more accurate results, two or more approach can be combined.Penalized regression is not efficient method for multiclass classification task, since the model is complex.The best lambda is found but I can not obtain any result with minimum lambda value.The decision tree approach have have relatively high errors than other methods.The minimum error is obtained by using 0.01 complexity parameter and 12 tree size.The best result is obtained random forest model.Stochastic gradient approach have reasonable results.
