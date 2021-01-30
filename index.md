@@ -17,6 +17,7 @@
 
 ## WEEK 4 (January 29)
 [Here](files/IE582_Fall2020_Homework4.pdf) is the description of Homework 4 \
-[Here](files/IE582_HW4__PART1_KAYA.html) is Homework 4 Dataset 1 : Sports Article for Objectivity Analysis \
-[Here](files/IE582_HW4_PART2_KAYA.html) is Homework 4 Dataset 2 : Mushroom Dataset \
-[Here](files/IE582_HW4_PART3_KAYA.html) is Homework 4 Dataset 3 : Student Performance 
+[Here](files/IE582_HW4__PART1_KAYA.html) is Homework 4 Dataset 1 : Sports Article for Objectivity Analysis and [codes](files/IE582_HW4_PART1.R) \
+[Here](files/IE582_HW4_PART2_KAYA.html) is Homework 4 Dataset 2 : Mushroom Dataset and [codes](files/IE582_HW4_PART2.Rmd) \
+[Here](files/IE582_HW4_PART3_KAYA.html) is Homework 4 Dataset 3 : Student Performance and [codes](files/IE582_HW4_PART3.Rmd)\
+[Here](files/IE582_HW4_PART4_KAYA.html) is Homework 4 Dataset 4 : Covertype Dataset and [codes](files/IE582_HW4_PART4.Rmd)
