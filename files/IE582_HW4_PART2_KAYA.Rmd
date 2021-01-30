@@ -1,0 +1,297 @@
+---
+title: "HOMEWORK 4"
+author : "Duygu Kaya - IE582 - Fall 2020"
+due : "January 29"
+output: html_document
+---
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE,warning = F,error = F, message = F)
+```
+
+## DATASET 2 : MUSHROOM
+The mushroom dataset includes descriptions of hypothetical samples corresponding to 23 species of gilled mushrooms in the Agaricus and Lepiota family. Each species is identified as definitely edible or poisonous.All data is categorical, dummy coding is used to handle categorical variables for penalized regression and gradient boosting method.
+
+* Classification
+* 22 attributes
+* 8124 instances
+* Categorial features
+
+```{r}
+# HOMEWORK 4//PART 2
+
+library(tidyverse)
+library(dplyr)
+library(stringr)
+library(glmnet)
+library(stats)
+library(base)
+library(caret)
+library(rpart)
+library(rattle)
+library(readxl)
+library(Metrics)
+library(penalized)
+library(randomForest)
+library(gbm)
+
+# MUSHROOM DATASET
+mushroom <- read.csv("C:\\Users\\kayad\\Desktop\\agaricus-lepiota.data", header = TRUE)
+
+# add labels
+
+colnames(mushroom) <- c("Class","cap shape","cap surface","cap color","bruises","odor","gill attachment","gill spacing",            
+                        "gill size","gill color","stalk shape", "stalk root","stalk surface above ring","stalk surface below ring",
+                        "stalk color above ring","stalk color below ring","veil_type","veil color","ring number","ring type",
+                        "spore print color", "population","habitat")
+
+mushroom  <- subset(mushroom,select=-c(veil_type))
+
+
+dummy  <-dummyVars(" ~ .", data = mushroom)
+dummy <- data.frame(predict(dummy, newdata = mushroom))
+
+class <- mushroom$Class
+class  <- ifelse(class == "p", 1, 0)
+
+mushroom <- cbind(class,mushroom)
+mushroom  <- subset(mushroom,select=-c(Class))
+
+# train and test data
+
+# 80% of the sample size
+smp_size <- floor(0.8 * nrow(mushroom))
+
+set.seed(123)
+train_ind <- sample(seq_len(nrow(mushroom)), size = smp_size)
+
+mushroom_training <-mushroom[train_ind, ]
+mushroom_test <- mushroom[-train_ind, ]
+
+# cv data
+
+mushroom_training<-mushroom_training[sample(nrow(mushroom_training)),]
+
+folds <- cut(seq(1,nrow(mushroom_training)),breaks=10,labels=FALSE)
+for(i in 1:10){
+  testIndexes <- which(folds==i,arr.ind=TRUE)
+  mushroom_cv <- mushroom_training[testIndexes, ]
+  mushroom_train <- mushroom_training[-testIndexes, ]
+}
+
+prop.table(table(mushroom_train$class))
+prop.table(table(mushroom_cv$class))
+prop.table(table(mushroom_test$class))
+
+
+# train and test data for dummy data
+# 80% of the sample size
+
+smp_size_dummy <- floor(0.8 * nrow(dummy))
+
+set.seed(123)
+train_ind_dummy <- sample(seq_len(nrow(dummy)), size = smp_size_dummy)
+
+dummy_training <-dummy[train_ind_dummy, ]
+dummy_test <- dummy[-train_ind_dummy, ]
+
+# cv data
+
+dummy_training<-dummy_training[sample(nrow(dummy_training)),]
+
+folds <- cut(seq(1,nrow(dummy_training)),breaks=10,labels=FALSE)
+for(i in 1:10){
+  testIndexes_dummy <- which(folds==i,arr.ind=TRUE)
+  dummy_cv <- dummy_training[testIndexes_dummy, ]
+  dummy_train <- dummy_training[-testIndexes_dummy, ]
+}
+
+```
+
+### PENALIZED REGRESSION APPROACH
+
+```{r}
+# PENALIZED REGRESSION METHOD
+
+classp <- mushroom_train$class
+classp <- as.matrix(classp)
+class2 <- mushroom_test$class
+class3 <- mushroom_cv$class
+class2 <- as.matrix(class2)
+class3 <- as.matrix(class3)
+dummy_train_lasso <- dummy_train[,3:118]
+dummy_test_lasso <- dummy_test[,3:118]
+dummy_cv_lasso <- dummy_cv[,3:118]
+
+
+
+cv_mushroom <- cv.glmnet(as.matrix(dummy_train_lasso), classp,family.measuere ="class", family = "binomial")
+lambda_min <- cv_mushroom$lambda.min
+plot(cv_mushroom)
+
+
+lasso1 <- glmnet( as.matrix(dummy_train_lasso), dummy_train$Classp,family.measuere ="class", family='binomial',lambda = lambda_min)
+predict1<- predict(lasso1,as.matrix(dummy_test_lasso),type = "class")
+predict_cv1 <- predict(lasso1,as.matrix(dummy_cv_lasso),type = "class")
+table_lasso1 <- table(class2,predict1)
+tablecv_lasso1 <-table(class3,predict_cv1)
+error_cv_lasso1 <- 1-sum(class3==predict_cv1)/nrow(dummy_cv_lasso)
+error_lasso1 <- 1-sum(class2==predict1)/nrow(dummy_test_lasso)
+
+
+#L1 penalty with different lambdas (0.001,0.1)
+lasso2 <- glmnet( as.matrix(dummy_train_lasso), dummy_train$Classp,family.measuere ="class", family='binomial',lambda = 0.001)
+predict2<- predict(lasso2,as.matrix(dummy_test_lasso),type = "class")
+predict_cv2 <- predict(lasso2,as.matrix(dummy_cv_lasso),type = "class")
+table_lasso2 <- table(class2,predict2)
+tablecv_lasso2 <-table(class3,predict_cv2)
+error_cv_lasso2 <- 1-sum(class3==predict_cv2)/nrow(dummy_cv_lasso)
+error_lasso2 <- 1-sum(class2==predict2)/nrow(dummy_test_lasso)
+
+lasso3 <- glmnet( as.matrix(dummy_train_lasso), dummy_train$Classp,family.measuere ="class", family='binomial',lambda = 0.1)
+predict3<- predict(lasso3,as.matrix(dummy_test_lasso),type = "class")
+predict_cv3 <- predict(lasso3,as.matrix(dummy_cv_lasso),type = "class")
+table_lasso3 <- table(class2,predict3)
+tablecv_lasso3 <-table(class3,predict_cv3)
+error_cv_lasso3 <- 1-sum(class3==predict_cv3)/nrow(dummy_cv_lasso)
+error_lasso3 <- 1-sum(class2==predict3)/nrow(dummy_test_lasso)
+
+# Table
+lambda_0001<-c("0.0001","0","0")
+lambda_001<-c("0.01","0.0015","0")
+lambda_01<-c("0.1","0.00246","0.00215")
+PRA_TABLE <-rbind(lambda_0001,lambda_001,lambda_01)
+PRA_TABLE<- as.data.frame(PRA_TABLE)
+colnames(PRA_TABLE)<-c("lambda","cv error","test error")
+PRA_TABLE
+
+```
+
+
+
+### DECISION TREE APPROACH
+```{r}
+test_class <- mushroom_test[,1]
+cv_class<- mushroom_cv[,1]
+
+mushroom_test_DT <- mushroom_test[,2:22]
+mushroom_cv_DT <- mushroom_cv[,2:22]
+class<- as.matrix(class)
+
+cla_tree_1 = rpart(class~.,data = mushroom_train,method = 'class')
+
+plotcp(cla_tree_1)
+printcp(cla_tree_1)
+cla_tree_1$variable.importance
+fancyRpartPlot(cla_tree_1)
+
+cp = c(0.01,0.05,0.1)
+minsplit = c(5,20,50,100)
+
+error_DT<-c()
+error_cv_DT<-c()
+DT_TABLE <-matrix(0,4,12)
+test_pred <- matrix(0,1625,12)
+cv_pred<- matrix(0,650,12)
+
+i=1
+  for(k in 1:length(minsplit)){
+    for(l in 1:length(cp)){
+      cla_tree <- rpart(class~.,data = mushroom_train, method='class', control = rpart.control(cp = cp[l],minsplit = minsplit[k]))
+      cla_tree_cv <- rpart(class~.,data = mushroom_train, method='class', control = rpart.control(cp = cp[l],minsplit = minsplit[k]))
+      testp <-predict(cla_tree, mushroom_test_DT, type = 'class')
+      cv_p  <- predict(cla_tree_cv, mushroom_cv_DT, type = 'class')
+      cv_pred[,i] <- as.factor(as.character(cv_p))
+      test_pred[,i] <- as.factor(as.character(testp))
+      table_test <- table(class2,test_pred[,i])
+      table_cv <- table(class3,cv_pred[,i])
+      error_cv_DT[i]<-1-sum(diag(table_cv))/nrow(mushroom_cv)
+      error_DT[i] <- 1-sum(diag(table_test))/nrow(mushroom_test)
+      DT_TABLE <- cbind(error_DT,error_cv_DT, minsplit,cp)
+      i = i+1
+    }
+  }
+
+```
+
+
+### RANDOM FOREST APPROACH
+```{r}
+# RANDOM FOREST MODEL 
+
+mushroom_train$class <- as.factor(as.character(mushroom_train$class))
+mushroom_test$class <- as.factor(as.character(mushroom_test$class))
+
+
+# mtry 10
+
+rforest1 <- randomForest(mushroom_train[,2:22],mushroom_train$class,ntree=500,nodesize =5,mtry = 10)
+predict_RF1 <- predict(rforest1,mushroom_test[,2:22])
+tableRF1<-table(mushroom_test$class,predict_RF1)
+error_RF1<- 1-sum(diag(tableRF1))/nrow(mushroom_test)
+
+# mtry 5
+
+rforest2 <- randomForest(mushroom_train[,2:22],mushroom_train$class,ntree=500,nodesize =5,mtry = 5)
+predict_RF2 <- predict(rforest2,mushroom_test[,2:22])
+tableRF2<-table(mushroom_test$class,predict_RF2)
+error_RF2<- 1-sum(diag(tableRF2))/nrow(mushroom_test)
+
+# mtry 20
+
+rforest3 <- randomForest(mushroom_train[,2:22],mushroom_train$class,ntree=500,nodesize =5,mtry = 20)
+predict_RF3 <- predict(rforest3,mushroom_test[,2:22])
+tableRF3<-table(mushroom_test$class,predict_RF3)
+error_RF3<- 1-sum(diag(tableRF3))/nrow(mushroom_test)
+
+
+# Table
+mtry5<-c("5","0")
+mtry10<-c("10","0")
+mtry20<-c("20","0")
+RF_TABLE <-rbind(mtry5,mtry10,mtry20)
+RF_TABLE<- as.data.frame(RF_TABLE)
+colnames(RF_TABLE)<-c("mtry","test error")
+RF_TABLE
+
+```
+
+
+### STOCHASTIC GRADIENT BOOSTING
+```{r}
+# STOCHASTIC GRADIENT BOOSTING
+error_cv_sgb <- c()
+error_sgb <- c()
+pred_test_sgb <-matrix(0,1625,27)
+pred_cv_sgb<-matrix(0,650,27)
+SGB_TABLE<-matrix(0,5,27)
+shrinkage= c(0.01,0.1,0.5)
+ntree=c(100,200,300)
+interaction_depth =c(1,2,3)
+
+j=1
+for(m in 1:length(ntree)){
+  for(n in 1:length(shrinkage)){
+    for(p in 1:length(interaction_depth)){
+      
+      sgb <- gbm(classp~.,data = dummy_train[,3:118],distribution ="bernoulli",n.trees = ntree[m],shrinkage = shrinkage[n], interaction.depth = interaction_depth[p])
+      sgb_cv <- gbm(classp~.,data = dummy_train[,3:118],distribution ="bernoulli",n.trees = ntree[m],shrinkage = shrinkage[n], interaction.depth = interaction_depth[p])
+      predcv_sgb <-predict(sgb_cv,dummy_cv[,3:118])
+      predcv_sgb <-ifelse(predcv_sgb>0.50,"1","0")
+      pred_cv_sgb[,j]<- as.character(as.factor(predcv_sgb))
+      pred_sgb <- predict(sgb,dummy_test[,3:118])
+      pred_sgb <-ifelse(pred_sgb>0.50,"1","0")
+      pred_test_sgb[,j]<- as.character(as.factor(pred_sgb))
+      table_test_sgb <- table(mushroom_test$class,pred_test_sgb[,j])
+      table_cv_sgb <- table(mushroom_cv$class,pred_cv_sgb[,j])
+      error_cv_sgb[j]<- 1-sum(diag(table_cv_sgb))/nrow(mushroom_cv)
+      error_sgb[j] <- 1-sum(diag(table_test_sgb))/nrow(mushroom_test)
+      SGB_TABLE <- cbind(error_sgb,error_cv_sgb, ntree,shrinkage,interaction_depth)
+      j=j+1
+    }
+  }
+}
+
+SGB_TABLE
+```
+
+All methods demonstrate great performance for mushroom dataset.The errors are nearly zero under all conditions.However, the main issue can be false negatives.In order to handle this problem, threshold value can be changed to reduce misclassification or additional algorithms can be applied.
