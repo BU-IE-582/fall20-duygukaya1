@@ -14,3 +14,9 @@
 ## WEEK 3  (January 01)
 [Here](files/IE582_Fall2020_Homework3.pdf) is the description of Homework 3 \
 [Here](files/IE582_HW3_KAYA.html) is Homework 3 and [codes](files/IE582_HW3_KAYA.Rmd)
+
+## WEEK 4 (January 29)
+[Here](files/IE582_Fall2020_Homework4.pdf) is the description of Homework 4 \
+[Here](files/IE582_HW4_PART1_KAYA.html) is Homework 4 : Sports Article for Objectivity Analysis
+[Here](files/IE582_HW4_PART2_KAYA.html) is Homework 4 : Mushroom Dataset
+[Here](files/IE582_HW4_PART3_KAYA.html) is Homework 4 : Student Performance
