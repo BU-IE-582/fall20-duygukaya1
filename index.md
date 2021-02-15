@@ -21,3 +21,7 @@
 [Here](files/IE582_HW4_PART2_KAYA.html) is Homework 4 Dataset 2 : Mushroom Dataset and [codes](files/IE582_HW4_PART2.Rmd) \
 [Here](files/IE582_HW4_PART3_KAYA.html) is Homework 4 Dataset 3 : Student Performance and [codes](files/IE582_HW4_PART3.Rmd)\
 [Here](files/IE582_HW4_PART4_KAYA.html) is Homework 4 Dataset 4 : Covertype Dataset and [codes](files/IE582_HW4_PART4.Rmd)
+
+## PROJECT (February 15)
+[Here](Project/IE582_Fall20_Project.pdf) is the description of Project \
+[Here](Project/IE582_ProjectReport.html) is Project Report and [codes](Project/IE582_ProjectCode.R)
